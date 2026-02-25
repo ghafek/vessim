@@ -1,81 +1,39 @@
+# Editor / OS
 .idea
 .vscode
-.texpadtmp
 .DS_Store
+.texpadtmp
 .ipynb_checkpoints
-.ruff_cache
-.mypy_cache
-.pytest_cache
-.coverage
-__pycache__
-dockerfile
 
-.eggs
-vessim.egg-info
-
-venv
-dist
-
-# code coverage files
+# Python cache / tooling
+__pycache__/
+*.py[cod]
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
 .coverage
 coverage.xml
 
-# poetry cache
-poetry.lock
+# Python packaging / environments
+.eggs/
+*.egg-info/
+dist/
+build/
+venv/
+.venv/
 
-# result.csv that is printed after each sim
-result.csv
-results
-
-# Terraform files
-*.tfstate
-*.tfstate.backup
-*.tfplan
-*.terraform.*
-*.tfvars
-
-# Ignore any .terraform directories
-**/.terraform/*
-
-# Ignore override files
-override.tf
-override.tf.json
-*_override.tf
-*_override.tf.json
-
-# Ignore CLI configuration files
-.terraformrc
-terraform.rc
-
-# Ignore sensitive files
-*.pem
-*.key
-*.pub
-/keys
-/.ssh
-
-# Ignore crash log files
-crash.log
-
-# Ignore provider-specific files
-# Replace "PROVIDER_NAME" with the actual provider name, e.g., "aws", "azure", etc.
-# Uncomment the relevant line if you're using a specific provider.
-# */PROVIDER_NAME/*.tf
-# */PROVIDER_NAME/*.tf.json
-
-# Ignore .tfvars files that are not checked in
-# Uncomment the relevant line if you have sensitive .tfvars files
-# or you want to exclude all .tfvars files from version control.
-# *.tfvars
-# !example.tfvars
-
-# Ignore generated files
-*.tf.out
-
-# Ignore local .env files used for environment variables
+# Local environment files
 .env*
 
-# Sphinx
-_build
-# Ignore playground and all its contents
+# Local runtime outputs
+result.csv
+results/
+runs/
+
+# Docs / local playground
+_build/
 vessim-playground/
+
+# Final report doc folder: keep only compiled PDF in git
+experiments/PPVSSlurmFinalReportDocu/**
+!experiments/PPVSSlurmFinalReportDocu/*.pdf

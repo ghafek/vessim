@@ -1,0 +1,22 @@
+scenario_id: null
+
+sim_start: "2022-06-15"
+step_size_s: 300
+until_s: 7200
+microgrid_name: "datacenter"
+
+policy:
+  mode: "grid-connected"
+  charge_power: 0.0
+
+battery:
+  capacity_wh: 0
+  initial_soc: 0.0
+  min_soc: 0.0
+  c_rate: null
+
+actors:
+  - name: "server"
+    signal: {mode: static, value: -700}
+  - name: "solar_panel"
+    signal: {mode: static, value: 1000}

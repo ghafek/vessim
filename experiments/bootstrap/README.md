@@ -36,6 +36,20 @@ experiments/bootstrap/init_project.sh \
   --vessim-root /beegfs/$USER/ppvs_repo
 ```
 
+Main-mode dataset filenames are profile-driven and default to generic names
+(`power_data.csv`, `wind_data.csv`, ...). Set `PPVS_MAIN_DATA_PROFILE=reference`
+or copy reference exports from:
+
+```bash
+cat experiments/profiles/main_data_reference_compat.env
+```
+
+Typical usage:
+
+```bash
+cat experiments/profiles/main_data_reference_compat.env >> /beegfs/$USER/ppvs_runtime/profiles/cluster.env
+```
+
 ## 2) Run preflight checks
 
 ```bash
@@ -51,12 +65,18 @@ Checks include:
 - runtime path read/write checks
 - compute-node visibility of shared runtime path
 
-## 3) Install Python env (Hydra + Optuna included)
+## 3) Install Python env (mode-aware dependencies)
 
 ```bash
 experiments/bootstrap/install_python_env.sh \
   --profile /beegfs/$USER/ppvs_runtime/profiles/cluster.env
 ```
+
+Default behavior:
+
+- installs workflow dependencies (`vessim`, Hydra, YAML, pandas)
+- in `main` mode also installs `nrel-pysam`
+- installs Optuna only if `PPVS_REQUIRE_OPTUNA=1`
 
 Optional module-based Python:
 
@@ -92,10 +112,30 @@ experiments/setup_env.sh \
 
 experiments/submit_sweep.sh \
   --profile /beegfs/$USER/ppvs_runtime/profiles/cluster.env \
+  wind_system_capacity=0,3000,6000 \
+  solar_system_capacity=0,4000,8000 \
+  battery_capacity=0,7500,15000 \
+  step_size_s=60 \
+  until_s=1800
+```
+
+To run lightweight legacy scenarios instead:
+
+```bash
+PPVS_MODE=simple experiments/submit_sweep.sh \
+  --profile /beegfs/$USER/ppvs_runtime/profiles/cluster.env \
   battery.capacity_wh=0,100,300 \
   actors.1.signal.value=1000,2000 \
   step_size_s=60 \
   until_s=3600
+```
+
+If you keep overrides in a file (one override per line), use:
+
+```bash
+experiments/submit_sweep.sh \
+  --profile /beegfs/$USER/ppvs_runtime/profiles/cluster.env \
+  --overrides-file my_overrides.txt
 ```
 
 ## Optional observability stack (self-managed clusters only)

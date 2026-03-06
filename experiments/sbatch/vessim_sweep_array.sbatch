@@ -9,6 +9,7 @@ set -euo pipefail
 
 PARAM_FILE="${PARAM_FILE:?PARAM_FILE is required}"
 SCENARIO_SCRIPT="${SCENARIO_SCRIPT:?SCENARIO_SCRIPT is required}"
+ARRAY_OFFSET="${ARRAY_OFFSET:-0}"
 
 PPVS_RUNS_DIR="${PPVS_RUNS_DIR:-$PWD/runs}"
 PPVS_VESSIM_ROOT="${PPVS_VESSIM_ROOT:-$PWD}"
@@ -37,6 +38,8 @@ import sys
 
 path = os.environ["PARAM_FILE"]
 idx = int(os.environ["SLURM_ARRAY_TASK_ID"])
+offset = int(os.environ.get("ARRAY_OFFSET", "0"))
+idx = idx + offset
 
 with open(path, newline="") as f:
     rows = list(csv.DictReader(f))

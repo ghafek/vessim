@@ -136,12 +136,17 @@ export PPVS_EXPERIMENTS_DIR="${EXPERIMENTS_DIR}"
 export PPVS_PARAMS_DIR="\${PPVS_ROOT}/params"
 export PPVS_RESULTS_DIR="\${PPVS_ROOT}/results"
 export PPVS_RUNS_DIR="\${PPVS_ROOT}/runs"
+export PPVS_DATA_DIR="\${PPVS_PARAMS_DIR}/data"
 export PPVS_VESSIM_ROOT="${VESSIM_ROOT}"
 
 export PPVS_VENV="${PPVS_VENV}"
 # export PPVS_PYTHON="/full/path/to/python3"
 
 export PARAM_FILE=""
+export PPVS_MODE="main"
+export PPVS_MAIN_DATA_PROFILE="generic"
+# For reference-compatible filenames, append exports from:
+# experiments/profiles/main_data_reference_compat.env
 
 export SLURM_PARTITION="${SLURM_PARTITION}"
 export SLURM_ACCOUNT="${SLURM_ACCOUNT}"
@@ -154,6 +159,7 @@ export SLURM_TIME="${SLURM_TIME}"
 export ARRAY_THROTTLE="${ARRAY_THROTTLE}"
 
 # export SBATCH_EXTRA_ARGS="--acctg-freq=task=1"
+export PPVS_REQUIRE_OPTUNA="0"
 
 export OBS_ENABLE="0"
 export OBS_ELASTIC_URL="http://localhost:9200"

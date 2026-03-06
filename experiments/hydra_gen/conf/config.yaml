@@ -1,22 +1,27 @@
 scenario_id: null
 
-sim_start: "2022-06-15"
-step_size_s: 300
-until_s: 7200
+sim_start: "2020-01-01 00:00:00"
+step_size_s: 60
+until_s: 31536000
 microgrid_name: "datacenter"
 
 policy:
   mode: "grid-connected"
   charge_power: 0.0
 
-battery:
-  capacity_wh: 0
-  initial_soc: 0.0
-  min_soc: 0.0
-  c_rate: null
+wind_system_capacity: 0
+solar_system_capacity: 0
+wind_turbine_model: "GE 1.5sle"
+battery_capacity: 0
+single_cell_capacity: 19.14
 
-actors:
-  - name: "server"
-    signal: {mode: static, value: -700}
-  - name: "solar_panel"
-    signal: {mode: static, value: 1000}
+data_root: "params/data"
+
+file_paths:
+  power_data: "${data_root}/power_data.csv"
+  wind_data: "${data_root}/wind_data.csv"
+  solar_data: "${data_root}/solar_data.csv"
+  solar_config: "${data_root}/solar_config.json"
+  wind_config: "${data_root}/wind_config.json"
+  wind_turbines: "${data_root}/wind_turbines.csv"
+  carbon_data: "${data_root}/carbon_data.csv"

@@ -20,13 +20,49 @@ PPVS_EXPERIMENTS_DIR="${PPVS_EXPERIMENTS_DIR:-${PPVS_ROOT}/experiments}"
 PPVS_PARAMS_DIR="${PPVS_PARAMS_DIR:-${PPVS_ROOT}/params}"
 PPVS_RESULTS_DIR="${PPVS_RESULTS_DIR:-${PPVS_ROOT}/results}"
 PPVS_RUNS_DIR="${PPVS_RUNS_DIR:-${PPVS_ROOT}/runs}"
+PPVS_DATA_DIR="${PPVS_DATA_DIR:-${PPVS_PARAMS_DIR}/data}"
 PPVS_VENV="${PPVS_VENV:-$HOME/.venvs/vessim}"
 PPVS_VESSIM_ROOT="${PPVS_VESSIM_ROOT:-${PPVS_ROOT}}"
 CLUSTER_NAME="${CLUSTER_NAME:-unknown-cluster}"
 OBS_ENABLE="${OBS_ENABLE:-0}"
 OBS_ELASTIC_URL="${OBS_ELASTIC_URL:-http://localhost:9200}"
+PPVS_MODE="${PPVS_MODE:-main}"
 PPVS_REQUIRE_OPTUNA="${PPVS_REQUIRE_OPTUNA:-0}"
+PPVS_MAIN_DATA_PROFILE="${PPVS_MAIN_DATA_PROFILE:-generic}"
+case "${PPVS_MAIN_DATA_PROFILE}" in
+  generic)
+    MAIN_POWER_DEFAULT="power_data.csv"
+    MAIN_WIND_DEFAULT="wind_data.csv"
+    MAIN_SOLAR_DEFAULT="solar_data.csv"
+    MAIN_SOLAR_CONFIG_DEFAULT="solar_config.json"
+    MAIN_WIND_CONFIG_DEFAULT="wind_config.json"
+    MAIN_WIND_TURBINES_DEFAULT="wind_turbines.csv"
+    MAIN_CARBON_DEFAULT="carbon_data.csv"
+    ;;
+  reference)
+    MAIN_POWER_DEFAULT="power_data_ce.csv"
+    MAIN_WIND_DEFAULT="wind_data_berkeley.csv"
+    MAIN_SOLAR_DEFAULT="solar_data_berkeley.csv"
+    MAIN_SOLAR_CONFIG_DEFAULT="pvwatts_config.json"
+    MAIN_WIND_CONFIG_DEFAULT="windpower_config.json"
+    MAIN_WIND_TURBINES_DEFAULT="Wind_Turbines.csv"
+    MAIN_CARBON_DEFAULT="US-CAL-CISO_2024_hourly.csv"
+    ;;
+  *)
+    echo "Invalid PPVS_MAIN_DATA_PROFILE=${PPVS_MAIN_DATA_PROFILE}. Use generic or reference." >&2
+    exit 2
+    ;;
+esac
+PPVS_MAIN_POWER_DATA_FILE="${PPVS_MAIN_POWER_DATA_FILE:-${MAIN_POWER_DEFAULT}}"
+PPVS_MAIN_WIND_DATA_FILE="${PPVS_MAIN_WIND_DATA_FILE:-${MAIN_WIND_DEFAULT}}"
+PPVS_MAIN_SOLAR_DATA_FILE="${PPVS_MAIN_SOLAR_DATA_FILE:-${MAIN_SOLAR_DEFAULT}}"
+PPVS_MAIN_SOLAR_CONFIG_FILE="${PPVS_MAIN_SOLAR_CONFIG_FILE:-${MAIN_SOLAR_CONFIG_DEFAULT}}"
+PPVS_MAIN_WIND_CONFIG_FILE="${PPVS_MAIN_WIND_CONFIG_FILE:-${MAIN_WIND_CONFIG_DEFAULT}}"
+PPVS_MAIN_WIND_TURBINES_FILE="${PPVS_MAIN_WIND_TURBINES_FILE:-${MAIN_WIND_TURBINES_DEFAULT}}"
+PPVS_MAIN_CARBON_DATA_FILE="${PPVS_MAIN_CARBON_DATA_FILE:-${MAIN_CARBON_DEFAULT}}"
 export PPVS_REQUIRE_OPTUNA
+export PPVS_MODE
+export PPVS_MAIN_DATA_PROFILE
 
 if [[ "${PPVS_ROOT}" == "/path/to/ppvs" ]]; then
   echo "PPVS_ROOT is still the template placeholder (/path/to/ppvs)." >&2
@@ -65,9 +101,12 @@ echo "PPVS_EXPERIMENTS_DIR=${PPVS_EXPERIMENTS_DIR}"
 echo "PPVS_PARAMS_DIR=${PPVS_PARAMS_DIR}"
 echo "PPVS_RESULTS_DIR=${PPVS_RESULTS_DIR}"
 echo "PPVS_RUNS_DIR=${PPVS_RUNS_DIR}"
+echo "PPVS_DATA_DIR=${PPVS_DATA_DIR}"
 echo "PPVS_VESSIM_ROOT=${PPVS_VESSIM_ROOT}"
 echo "PPVS_VENV=${PPVS_VENV}"
 echo "PYTHON_BIN=${PYTHON_BIN}"
+echo "PPVS_MODE=${PPVS_MODE}"
+echo "PPVS_MAIN_DATA_PROFILE=${PPVS_MAIN_DATA_PROFILE}"
 echo "OBS_ENABLE=${OBS_ENABLE}"
 echo "OBS_ELASTIC_URL=${OBS_ELASTIC_URL}"
 echo "PPVS_REQUIRE_OPTUNA=${PPVS_REQUIRE_OPTUNA}"
@@ -81,6 +120,14 @@ for d in \
 do
   [[ -d "${d}" ]] || { echo "Missing required directory: ${d}" >&2; exit 1; }
 done
+
+case "${PPVS_MODE}" in
+  main|simple) ;;
+  *)
+    echo "Invalid PPVS_MODE=${PPVS_MODE}. Use main or simple." >&2
+    exit 2
+    ;;
+esac
 
 check_rw_dir "${PPVS_PARAMS_DIR}"
 check_rw_dir "${PPVS_RESULTS_DIR}"
@@ -113,7 +160,8 @@ for f in \
   "${PPVS_EXPERIMENTS_DIR}/sbatch/vessim_smoke.sbatch" \
   "${PPVS_EXPERIMENTS_DIR}/sbatch/postprocess_meta.sbatch" \
   "${PPVS_EXPERIMENTS_DIR}/vessim_smoke.py" \
-  "${PPVS_EXPERIMENTS_DIR}/run_scenario.py"
+  "${PPVS_EXPERIMENTS_DIR}/run_scenario.py" \
+  "${PPVS_EXPERIMENTS_DIR}/simple/run_scenario_simple.py"
 do
   [[ -f "${f}" ]] || { echo "Missing required file: ${f}" >&2; exit 1; }
 done
@@ -124,6 +172,8 @@ import importlib
 import sys
 mods = ["hydra", "yaml", "pandas", "vessim"]
 import os
+if os.environ.get("PPVS_MODE", "main") == "main":
+    mods.append("PySAM")
 if os.environ.get("PPVS_REQUIRE_OPTUNA", "0") == "1":
     mods.append("optuna")
 missing = [m for m in mods if importlib.util.find_spec(m) is None]
@@ -136,6 +186,32 @@ for m in mods:
     ver = getattr(mod, "__version__", "unknown")
     print(f"{m}_version={ver}")
 PY
+
+if [[ "${PPVS_MODE}" == "main" ]]; then
+  [[ -d "${PPVS_DATA_DIR}" ]] || {
+    echo "Missing PPVS_DATA_DIR for main mode: ${PPVS_DATA_DIR}" >&2
+    exit 1
+  }
+  echo "main_power_file=${PPVS_MAIN_POWER_DATA_FILE}"
+  echo "main_wind_file=${PPVS_MAIN_WIND_DATA_FILE}"
+  echo "main_solar_file=${PPVS_MAIN_SOLAR_DATA_FILE}"
+  echo "main_solar_config_file=${PPVS_MAIN_SOLAR_CONFIG_FILE}"
+  echo "main_wind_config_file=${PPVS_MAIN_WIND_CONFIG_FILE}"
+  echo "main_wind_turbines_file=${PPVS_MAIN_WIND_TURBINES_FILE}"
+  echo "main_carbon_file=${PPVS_MAIN_CARBON_DATA_FILE}"
+  for f in \
+    "${PPVS_DATA_DIR}/${PPVS_MAIN_POWER_DATA_FILE}" \
+    "${PPVS_DATA_DIR}/${PPVS_MAIN_WIND_DATA_FILE}" \
+    "${PPVS_DATA_DIR}/${PPVS_MAIN_SOLAR_DATA_FILE}" \
+    "${PPVS_DATA_DIR}/${PPVS_MAIN_SOLAR_CONFIG_FILE}" \
+    "${PPVS_DATA_DIR}/${PPVS_MAIN_WIND_CONFIG_FILE}" \
+    "${PPVS_DATA_DIR}/${PPVS_MAIN_WIND_TURBINES_FILE}" \
+    "${PPVS_DATA_DIR}/${PPVS_MAIN_CARBON_DATA_FILE}"
+  do
+    [[ -f "${f}" ]] || { echo "Missing main-mode dataset file: ${f}" >&2; exit 1; }
+  done
+  echo "main_mode_data_ok"
+fi
 
 for cmd in sbatch squeue sacct scontrol; do
   command -v "${cmd}" >/dev/null 2>&1 || {

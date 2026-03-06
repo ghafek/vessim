@@ -17,7 +17,7 @@ fi
 if [[ $# -eq 0 ]]; then
   cat <<'EOF' >&2
 Usage:
-  ./experiments/submit_sweep.sh [--profile experiments/profiles/mycluster.env] key=value[,value2] ...
+  ./experiments/submit_sweep.sh [--profile experiments/profiles/mycluster.env] [--overrides-file path.txt] key=value[,value2] ...
 
 Example:
   ./experiments/submit_sweep.sh --profile experiments/profiles/mycluster.env \
@@ -25,6 +25,9 @@ Example:
     actors.1.signal.value=1000,2000 \
     step_size_s=60 \
     until_s=3600
+
+  ./experiments/submit_sweep.sh --profile experiments/profiles/mycluster.env \
+    --overrides-file my_overrides.txt
 EOF
   exit 2
 fi

@@ -44,6 +44,40 @@ PPVS_EXPERIMENTS_DIR="${PPVS_EXPERIMENTS_DIR:?PPVS_EXPERIMENTS_DIR missing in pr
 PPVS_PARAMS_DIR="${PPVS_PARAMS_DIR:?PPVS_PARAMS_DIR missing in profile}"
 PPVS_RESULTS_DIR="${PPVS_RESULTS_DIR:?PPVS_RESULTS_DIR missing in profile}"
 PPVS_RUNS_DIR="${PPVS_RUNS_DIR:?PPVS_RUNS_DIR missing in profile}"
+PPVS_DATA_DIR="${PPVS_DATA_DIR:-${PPVS_PARAMS_DIR}/data}"
+PPVS_MODE="${PPVS_MODE:-main}"
+PPVS_MAIN_DATA_PROFILE="${PPVS_MAIN_DATA_PROFILE:-generic}"
+case "${PPVS_MAIN_DATA_PROFILE}" in
+  generic)
+    MAIN_POWER_DEFAULT="power_data.csv"
+    MAIN_WIND_DEFAULT="wind_data.csv"
+    MAIN_SOLAR_DEFAULT="solar_data.csv"
+    MAIN_SOLAR_CONFIG_DEFAULT="solar_config.json"
+    MAIN_WIND_CONFIG_DEFAULT="wind_config.json"
+    MAIN_WIND_TURBINES_DEFAULT="wind_turbines.csv"
+    MAIN_CARBON_DEFAULT="carbon_data.csv"
+    ;;
+  reference)
+    MAIN_POWER_DEFAULT="power_data_ce.csv"
+    MAIN_WIND_DEFAULT="wind_data_berkeley.csv"
+    MAIN_SOLAR_DEFAULT="solar_data_berkeley.csv"
+    MAIN_SOLAR_CONFIG_DEFAULT="pvwatts_config.json"
+    MAIN_WIND_CONFIG_DEFAULT="windpower_config.json"
+    MAIN_WIND_TURBINES_DEFAULT="Wind_Turbines.csv"
+    MAIN_CARBON_DEFAULT="US-CAL-CISO_2024_hourly.csv"
+    ;;
+  *)
+    echo "Invalid PPVS_MAIN_DATA_PROFILE=${PPVS_MAIN_DATA_PROFILE}. Use generic or reference." >&2
+    exit 2
+    ;;
+esac
+PPVS_MAIN_POWER_DATA_FILE="${PPVS_MAIN_POWER_DATA_FILE:-${MAIN_POWER_DEFAULT}}"
+PPVS_MAIN_WIND_DATA_FILE="${PPVS_MAIN_WIND_DATA_FILE:-${MAIN_WIND_DEFAULT}}"
+PPVS_MAIN_SOLAR_DATA_FILE="${PPVS_MAIN_SOLAR_DATA_FILE:-${MAIN_SOLAR_DEFAULT}}"
+PPVS_MAIN_SOLAR_CONFIG_FILE="${PPVS_MAIN_SOLAR_CONFIG_FILE:-${MAIN_SOLAR_CONFIG_DEFAULT}}"
+PPVS_MAIN_WIND_CONFIG_FILE="${PPVS_MAIN_WIND_CONFIG_FILE:-${MAIN_WIND_CONFIG_DEFAULT}}"
+PPVS_MAIN_WIND_TURBINES_FILE="${PPVS_MAIN_WIND_TURBINES_FILE:-${MAIN_WIND_TURBINES_DEFAULT}}"
+PPVS_MAIN_CARBON_DATA_FILE="${PPVS_MAIN_CARBON_DATA_FILE:-${MAIN_CARBON_DEFAULT}}"
 
 echo "== Host =="
 hostname
@@ -84,6 +118,39 @@ for d in "${PPVS_ROOT}" "${PPVS_EXPERIMENTS_DIR}" "${PPVS_PARAMS_DIR}" "${PPVS_R
 done
 echo "paths_rw_ok"
 
+case "${PPVS_MODE}" in
+  main|simple) ;;
+  *)
+    echo "Invalid PPVS_MODE=${PPVS_MODE}. Use main or simple." >&2
+    exit 2
+    ;;
+esac
+
+if [[ "${PPVS_MODE}" == "main" ]]; then
+  echo "== Main mode data files =="
+  [[ -d "${PPVS_DATA_DIR}" ]] || { echo "Missing PPVS_DATA_DIR: ${PPVS_DATA_DIR}" >&2; exit 1; }
+  echo "profile=${PPVS_MAIN_DATA_PROFILE}"
+  echo "power=${PPVS_MAIN_POWER_DATA_FILE}"
+  echo "wind=${PPVS_MAIN_WIND_DATA_FILE}"
+  echo "solar=${PPVS_MAIN_SOLAR_DATA_FILE}"
+  echo "solar_config=${PPVS_MAIN_SOLAR_CONFIG_FILE}"
+  echo "wind_config=${PPVS_MAIN_WIND_CONFIG_FILE}"
+  echo "wind_turbines=${PPVS_MAIN_WIND_TURBINES_FILE}"
+  echo "carbon=${PPVS_MAIN_CARBON_DATA_FILE}"
+  for f in \
+    "${PPVS_DATA_DIR}/${PPVS_MAIN_POWER_DATA_FILE}" \
+    "${PPVS_DATA_DIR}/${PPVS_MAIN_WIND_DATA_FILE}" \
+    "${PPVS_DATA_DIR}/${PPVS_MAIN_SOLAR_DATA_FILE}" \
+    "${PPVS_DATA_DIR}/${PPVS_MAIN_SOLAR_CONFIG_FILE}" \
+    "${PPVS_DATA_DIR}/${PPVS_MAIN_WIND_CONFIG_FILE}" \
+    "${PPVS_DATA_DIR}/${PPVS_MAIN_WIND_TURBINES_FILE}" \
+    "${PPVS_DATA_DIR}/${PPVS_MAIN_CARBON_DATA_FILE}"
+  do
+    [[ -f "${f}" ]] || { echo "Missing main-mode dataset file: ${f}" >&2; exit 1; }
+  done
+  echo "main_mode_data_ok"
+fi
+
 echo "== Shared path visibility from compute =="
 SRUN_ARGS=()
 if [[ -n "${SLURM_PARTITION:-}" ]]; then
@@ -95,6 +162,10 @@ srun "${SRUN_ARGS[@]}" -N1 -n1 bash -lc "
   test -d '${PPVS_ROOT}'
   test -d '${PPVS_RESULTS_DIR}'
   test -w '${PPVS_RESULTS_DIR}'
+  if [[ '${PPVS_MODE}' == 'main' ]]; then
+    test -d '${PPVS_DATA_DIR}'
+    test -f '${PPVS_DATA_DIR}/${PPVS_MAIN_POWER_DATA_FILE}'
+  fi
   echo compute_shared_ok
 "
 

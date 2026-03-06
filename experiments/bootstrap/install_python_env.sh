@@ -89,6 +89,8 @@ EOF
 PPVS_VESSIM_ROOT="${PPVS_VESSIM_ROOT:?PPVS_VESSIM_ROOT missing in profile}"
 PPVS_VENV="${VENV_OVERRIDE:-${PPVS_VENV:-$HOME/.venvs/vessim}}"
 PPVS_INSTALL_ROOT="$(resolve_vessim_root "${PPVS_VESSIM_ROOT}")"
+PPVS_MODE="${PPVS_MODE:-main}"
+PPVS_REQUIRE_OPTUNA="${PPVS_REQUIRE_OPTUNA:-0}"
 
 if [[ -n "${PYTHON_MODULE}" ]]; then
   if [[ -f /etc/profile.d/modules.sh ]]; then
@@ -127,6 +129,8 @@ fi
 echo "base_python=${BASE_PY}"
 echo "venv=${PPVS_VENV}"
 echo "vessim_root=${PPVS_INSTALL_ROOT}"
+echo "mode=${PPVS_MODE}"
+echo "require_optuna=${PPVS_REQUIRE_OPTUNA}"
 
 mkdir -p "$(dirname "${PPVS_VENV}")"
 if [[ ! -x "${PPVS_VENV}/bin/python" ]]; then
@@ -155,8 +159,13 @@ fi
 
 MISSING_DEPS="$("${PPVS_VENV}/bin/python" - <<'PY'
 import importlib.util
+import os
 
-mods = ["hydra", "yaml", "pandas", "optuna", "optuna_dashboard"]
+mods = ["hydra", "yaml", "pandas"]
+if os.environ.get("PPVS_MODE", "main") == "main":
+    mods.append("PySAM")
+if os.environ.get("PPVS_REQUIRE_OPTUNA", "0") == "1":
+    mods.extend(["optuna", "optuna_dashboard"])
 missing = [m for m in mods if importlib.util.find_spec(m) is None]
 print(" ".join(missing))
 PY
@@ -164,9 +173,16 @@ PY
 
 if [[ -n "${MISSING_DEPS}" ]]; then
   echo "Installing missing Python dependencies: ${MISSING_DEPS}"
-  "${PPVS_VENV}/bin/python" -m pip install hydra-core pyyaml pandas optuna optuna-dashboard
+  INSTALL_PACKAGES=(hydra-core pyyaml pandas)
+  if [[ "${PPVS_MODE}" == "main" ]]; then
+    INSTALL_PACKAGES+=(nrel-pysam)
+  fi
+  if [[ "${PPVS_REQUIRE_OPTUNA}" == "1" ]]; then
+    INSTALL_PACKAGES+=(optuna optuna-dashboard)
+  fi
+  "${PPVS_VENV}/bin/python" -m pip install "${INSTALL_PACKAGES[@]}"
 else
-  echo "Python dependencies already installed (hydra/yaml/pandas/optuna/optuna_dashboard)."
+  echo "Python dependencies already installed for mode=${PPVS_MODE}."
 fi
 
 if [[ "${EDITABLE}" -eq 1 ]]; then
@@ -184,7 +200,12 @@ fi
 
 "${PPVS_VENV}/bin/python" - <<'PY'
 import sys
-mods = ["hydra", "yaml", "pandas", "vessim", "optuna"]
+import os
+mods = ["hydra", "yaml", "pandas", "vessim"]
+if os.environ.get("PPVS_MODE", "main") == "main":
+    mods.append("PySAM")
+if os.environ.get("PPVS_REQUIRE_OPTUNA", "0") == "1":
+    mods.append("optuna")
 for m in mods:
     __import__(m)
 print("python_imports_ok", sys.executable)
@@ -199,7 +220,12 @@ if [[ "${SKIP_COMPUTE_CHECK}" -eq 0 ]]; then
   if ! srun "${SRUN_ARGS[@]}" -N1 -n1 bash -lc "
     set -e
     '${PPVS_VENV}/bin/python' - <<'PY'
-mods = ['hydra', 'yaml', 'pandas', 'vessim', 'optuna']
+import os
+mods = ['hydra', 'yaml', 'pandas', 'vessim']
+if os.environ.get('PPVS_MODE', 'main') == 'main':
+    mods.append('PySAM')
+if os.environ.get('PPVS_REQUIRE_OPTUNA', '0') == '1':
+    mods.append('optuna')
 for m in mods:
     __import__(m)
 print('compute_python_imports_ok')

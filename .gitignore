@@ -34,6 +34,5 @@ runs/
 _build/
 vessim-playground/
 
-# Final report doc folder: keep only compiled PDF in git
-experiments/PPVSSlurmFinalReportDocu/**
-!experiments/PPVSSlurmFinalReportDocu/*.pdf
+# Final report docs: local only, do not commit (contains real names/personal data)
+experiments/PPVSSlurmFinalReportDocu/

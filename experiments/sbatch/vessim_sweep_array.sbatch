@@ -56,12 +56,22 @@ base_id="${SLURM_ARRAY_JOB_ID:-$SLURM_JOB_ID}"
 work="${PPVS_RUNS_DIR}/${base_id}/${SLURM_ARRAY_TASK_ID}_${scenario_id}"
 mkdir -p "${work}"
 
-"${PYTHON_BIN}" "${SCENARIO_SCRIPT}" \
-  --scenario-id "${scenario_id}" \
-  --scenario-file "${scenario_file}" \
-  --solar-scale-w "${SOLAR_SCALE_W:-0}" \
-  --battery-wh "${BATTERY_WH:-0}" \
+RUN_ARGS=(
+  --scenario-id "${scenario_id}"
+  --scenario-file "${scenario_file}"
   --outdir "${work}"
+)
+
+case "${SCENARIO_SCRIPT}" in
+  */simple/run_scenario_simple.py)
+    RUN_ARGS+=(
+      --solar-scale-w "${SOLAR_SCALE_W:-0}"
+      --battery-wh "${BATTERY_WH:-0}"
+    )
+    ;;
+esac
+
+"${PYTHON_BIN}" "${SCENARIO_SCRIPT}" "${RUN_ARGS[@]}"
 
 if [[ "${ACTIVATED}" -eq 1 ]]; then
   deactivate || true

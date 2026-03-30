@@ -119,6 +119,10 @@ def _resolve_data_path(path_val: str, scenario_file: str) -> str:
 
 
 def compute_metrics_and_merge(df: pd.DataFrame, scenario: dict, outdir: Path) -> dict:
+    step_size_s = int(scenario.get("step_size_s", 60))
+    if step_size_s <= 0:
+        raise ValueError(f"Invalid step_size_s for postprocessing: {step_size_s}")
+
     file_paths = scenario.get("file_paths", {})
     carbon_data_path = _resolve_data_path(file_paths.get("carbon_data", ""), scenario.get("scenario_file", ""))
     carbon_data = pd.read_csv(carbon_data_path, parse_dates=["Datetime (UTC)"])
@@ -129,12 +133,12 @@ def compute_metrics_and_merge(df: pd.DataFrame, scenario: dict, outdir: Path) ->
     carbon_col = find_carbon_intensity_col(carbon_data)
     carbon_data = carbon_data[[carbon_col]].rename(columns={carbon_col: "carbon_intensity"})
 
-    carbon_data_resampled = carbon_data.resample("60s").ffill()
+    carbon_data_resampled = carbon_data.resample(f"{step_size_s}s").ffill()
     carbon_data_filtered = carbon_data_resampled.loc[df.index.min() : df.index.max()]
 
     merged_data = df.merge(carbon_data_filtered, left_index=True, right_index=True, how="left")
 
-    dt_h = 1.0 / 60.0
+    dt_h = step_size_s / 3600.0
 
     merged_data["total_consumption"] = merged_data["actor_states.ComputingSystem.p"]
     merged_data["total_renewable_power"] = (
@@ -216,6 +220,7 @@ def write_summary_event(outdir: Path, meta: dict) -> Path:
         "wind_system_capacity": to_number(scenario.get("wind_system_capacity", "")),
         "solar_system_capacity": to_number(scenario.get("solar_system_capacity", "")),
         "battery_capacity": to_number(scenario.get("battery_capacity", "")),
+        "battery_initial_soc": to_number(scenario.get("battery_initial_soc", "")),
         "backend_mode": "main",
     }
 
@@ -265,13 +270,23 @@ def validate_main_scenario(scenario: dict) -> None:
             "Scenario is not compatible with default backend. Missing: " + ", ".join(missing)
         )
 
+    battery_initial_soc = scenario.get("battery_initial_soc", 0.0)
+    try:
+        battery_initial_soc = float(battery_initial_soc)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"Invalid battery_initial_soc={battery_initial_soc!r}. Expected a number in [0, 1]."
+        ) from exc
+    if not 0.0 <= battery_initial_soc <= 1.0:
+        raise ValueError(
+            f"Invalid battery_initial_soc={battery_initial_soc}. Expected a number in [0, 1]."
+        )
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--scenario-id", default="")
     parser.add_argument("--scenario-file", default="")
-    parser.add_argument("--solar-scale-w", type=float, default=0.0)
-    parser.add_argument("--battery-wh", type=float, default=0.0)
     parser.add_argument("--step-size-s", type=int, default=60)
     parser.add_argument("--until-s", type=int, default=24 * 3600)
     parser.add_argument("--sim-start", default="2020-01-01 00:00:00")
@@ -315,6 +330,7 @@ def main() -> None:
     wind_system_capacity = float(scenario.get("wind_system_capacity", 0.0))
     solar_system_capacity = float(scenario.get("solar_system_capacity", 0.0))
     battery_capacity_kwh = float(scenario.get("battery_capacity", 0.0))
+    battery_initial_soc = float(scenario.get("battery_initial_soc", 0.0))
     single_cell_capacity_wh = float(scenario.get("single_cell_capacity", 19.14))
     wind_turbine_model = str(scenario.get("wind_turbine_model", "GE 1.5sle"))
 
@@ -336,7 +352,6 @@ def main() -> None:
     )
 
     num_cells = int((battery_capacity_kwh * 1000) / single_cell_capacity_wh) if battery_capacity_kwh > 0 else 0
-    initial_soc = 7500 / battery_capacity_kwh if battery_capacity_kwh > 0 else 0
 
     actors = [
         vs.Actor(
@@ -373,7 +388,7 @@ def main() -> None:
     if battery_capacity_kwh > 0 and num_cells > 0:
         storage = vs.ClcBattery(
             number_of_cells=num_cells,
-            initial_soc=initial_soc,
+            initial_soc=battery_initial_soc,
             nom_voltage=3.63,
             min_soc=0.0,
             v_1=0.0,

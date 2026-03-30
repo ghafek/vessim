@@ -25,20 +25,28 @@ def load_scenario(path: str) -> dict:
         return yaml.safe_load(f) or {}
 
 
+def resolve_input_path(path: str, scenario_file: str = "") -> str:
+    candidate = Path(path)
+    if candidate.is_absolute() or not scenario_file:
+        return str(candidate)
+    return str((Path(scenario_file).resolve().parent / candidate).resolve())
+
+
 def get_cached_csv(path: str):
-    if path not in _DATA_CACHE:
-        _DATA_CACHE[path] = pd.read_csv(path, index_col=0, parse_dates=True)
-    return _DATA_CACHE[path]
+    resolved = str(Path(path))
+    if resolved not in _DATA_CACHE:
+        _DATA_CACHE[resolved] = pd.read_csv(resolved, index_col=0, parse_dates=True)
+    return _DATA_CACHE[resolved]
 
 
-def build_signal(sig_conf: dict):
+def build_signal(sig_conf: dict, *, scenario_file: str = ""):
     mode = sig_conf.get("mode", "static")
 
     if mode == "static":
         return vs.StaticSignal(value=float(sig_conf["value"]))
 
     if mode == "csv_column":
-        csv_path = sig_conf["path"]
+        csv_path = resolve_input_path(sig_conf["path"], scenario_file)
         column = sig_conf["column"]
         scale = float(sig_conf.get("scale", 1.0))
 
@@ -130,7 +138,9 @@ def write_summary_event(outdir: Path, meta: dict) -> Path:
         sim_steps = int(until_s / step_size_s)
 
     battery = scenario.get("battery", {}) if isinstance(scenario, dict) else {}
-    battery_capacity_wh = to_number(battery.get("capacity_wh")) if isinstance(battery, dict) else None
+    battery_capacity_wh = to_number(meta.get("battery_capacity_wh"))
+    if battery_capacity_wh is None and isinstance(battery, dict):
+        battery_capacity_wh = to_number(battery.get("capacity_wh"))
 
     results_path = outdir / "results.csv"
     meta_path = outdir / "meta.json"
@@ -164,6 +174,7 @@ def write_summary_event(outdir: Path, meta: dict) -> Path:
         "actors_n": len(actors) if isinstance(actors, list) else 0,
         "csv_actors_n": csv_actors_n,
         "battery_capacity_wh": battery_capacity_wh,
+        "battery_source": meta.get("battery_source", ""),
         "slurm_job_id": slurm_meta.get("SLURM_JOB_ID", ""),
         "slurm_array_job_id": slurm_meta.get("SLURM_ARRAY_JOB_ID", ""),
         "slurm_array_task_id": slurm_meta.get("SLURM_ARRAY_TASK_ID", ""),
@@ -195,8 +206,8 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--scenario-id", default="")
     parser.add_argument("--scenario-file", default="")
-    parser.add_argument("--solar-scale-w", type=float, required=True)
-    parser.add_argument("--battery-wh", type=float, required=True)
+    parser.add_argument("--solar-scale-w", type=float, default=0.0)
+    parser.add_argument("--battery-wh", type=float, default=0.0)
     parser.add_argument("--server-w", type=float, default=-700.0)
     parser.add_argument("--step-size-s", type=int, default=300)
     parser.add_argument("--until-s", type=int, default=2 * 3600)
@@ -224,7 +235,7 @@ def main() -> None:
     if "actors" in scenario:
         actors = []
         for actor in scenario["actors"]:
-            signal = build_signal(actor["signal"])
+            signal = build_signal(actor["signal"], scenario_file=args.scenario_file)
             actors.append(vs.Actor(name=actor["name"], signal=signal))
     else:
         actors = [
@@ -238,6 +249,7 @@ def main() -> None:
         initial_soc = float(battery_cfg.get("initial_soc", 0.0))
         min_soc = float(battery_cfg.get("min_soc", 0.0))
         c_rate = battery_cfg.get("c_rate", None)
+        battery_source = "scenario"
         storage = vs.SimpleBattery(
             capacity=battery_wh,
             initial_soc=initial_soc,
@@ -246,6 +258,7 @@ def main() -> None:
         )
     else:
         battery_wh = max(args.battery_wh, 0.0)
+        battery_source = "cli_fallback"
         storage = vs.SimpleBattery(capacity=battery_wh)
 
     meta = {
@@ -256,6 +269,8 @@ def main() -> None:
         "until_s": until_s,
         "microgrid_name": microgrid_name,
         "policy": policy_cfg,
+        "battery_capacity_wh": battery_wh,
+        "battery_source": battery_source,
         "scenario_loaded": scenario,
         "slurm": {
             key: os.environ.get(key)

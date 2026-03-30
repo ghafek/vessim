@@ -13,6 +13,7 @@ wind_system_capacity: 0
 solar_system_capacity: 0
 wind_turbine_model: "GE 1.5sle"
 battery_capacity: 0
+battery_initial_soc: 0.0
 single_cell_capacity: 19.14
 
 data_root: "params/data"

@@ -153,6 +153,7 @@ Quick key list:
 - `main` common optional keys:
   - `scenario_id`, `sim_start`, `step_size_s`, `until_s`, `microgrid_name`
   - `policy.mode`, `policy.charge_power`
+  - `battery_initial_soc` (`0.0..1.0`)
 - `simple` common keys:
   - `scenario_id`, `sim_start`, `step_size_s`, `until_s`, `microgrid_name`
   - `policy.mode`, `policy.charge_power`

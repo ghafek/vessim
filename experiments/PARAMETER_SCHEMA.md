@@ -49,6 +49,11 @@ Main mode is validated strictly in `experiments/run_scenario.py` via `validate_m
 
 Shared top-level keys (`scenario_id`, `sim_start`, `step_size_s`, `until_s`, `microgrid_name`, `policy.*`) are optional and defaulted if missing.
 
+Main mode also supports:
+
+- `battery_initial_soc`: optional number in `[0, 1]`, default `0.0`
+- passed directly to the `ClcBattery` initial state-of-charge
+
 ### 2.3 Path resolution rules
 
 `file_paths.*` entries can be:
@@ -85,6 +90,7 @@ wind_system_capacity: 3000
 solar_system_capacity: 4000
 wind_turbine_model: "GE 1.5sle"
 battery_capacity: 7500
+battery_initial_soc: 0.0
 single_cell_capacity: 19.14
 
 file_paths:
@@ -121,6 +127,8 @@ It is flexible and does not enforce a strict required-key validator like main mo
 | `actors[].signal.path` | path | required for `csv_column` | CSV input path |
 | `actors[].signal.column` | string | required for `csv_column` | column name in CSV |
 | `actors[].signal.scale` | number | optional for `csv_column` | default `1.0` |
+
+Relative `actors[].signal.path` values are resolved relative to the scenario file when one is used.
 
 If no `actors` block is provided, internal defaults are used (`server` static load + `solar_panel` static generation from CLI args).
 

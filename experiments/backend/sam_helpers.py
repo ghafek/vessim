@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import math
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -90,6 +91,27 @@ def build_wind_config(
         wind_config = json.load(f)
 
     specs = load_wind_turbine_specs(wind_turbines_csv, wind_turbine_model)
+    num_turbines = math.floor(wind_system_capacity_kw / specs["kw_rating"])
+    if num_turbines <= 1:
+        num_turbines = 1
+    realized_capacity_kw = num_turbines * specs["kw_rating"] if wind_system_capacity_kw > 0 else 0.0
+    if wind_system_capacity_kw > 0 and not math.isclose(
+        realized_capacity_kw,
+        wind_system_capacity_kw,
+        rel_tol=0.0,
+        abs_tol=1e-9,
+    ):
+        warnings.warn(
+            (
+                f"Requested wind_system_capacity={wind_system_capacity_kw} kW is not an exact multiple "
+                f"of turbine '{wind_turbine_model}' rating {specs['kw_rating']} kW. "
+                f"Layout uses {num_turbines} turbine(s) for a realized turbine capacity of "
+                f"{realized_capacity_kw} kW while SAM system_capacity remains "
+                f"{wind_system_capacity_kw} kW for compatibility."
+            ),
+            RuntimeWarning,
+            stacklevel=2,
+        )
     layout = automatic_farm_layout(
         desired_farm_size_kw=wind_system_capacity_kw,
         wind_turbine_kw_rating=specs["kw_rating"],
@@ -140,14 +162,23 @@ def sam_to_trace(
     df_weather["Datetime"] = pd.to_datetime(df_weather[["Year", "Month", "Day", "Hour", "Minute"]])
     df_weather.set_index("Datetime", inplace=True)
 
+    ignored_keys: list[tuple[str, str]] = []
     for key, value in config_object.items():
         if key in {"number_inputs", "wind_resource_filename", "solar_resource_file"}:
             continue
         try:
             sam.value(key, value)
-        except Exception:
-            # Keep behavior robust; unsupported keys can be ignored.
-            pass
+        except Exception as exc:
+            ignored_keys.append((key, str(exc)))
+
+    if ignored_keys:
+        preview = ", ".join(f"{key} ({reason})" for key, reason in ignored_keys[:5])
+        more = "" if len(ignored_keys) <= 5 else f", +{len(ignored_keys) - 5} more"
+        warnings.warn(
+            f"Ignored unsupported SAM config key(s) for {model}: {preview}{more}",
+            RuntimeWarning,
+            stacklevel=2,
+        )
 
     sam.execute()
 
@@ -164,6 +195,16 @@ def sam_to_trace(
         raise RuntimeError("SAM Outputs.gen not found for model output extraction")
 
     vals = list(sam.Outputs.gen)
+    if len(vals) != len(df_weather.index):
+        warnings.warn(
+            (
+                f"{model} output length mismatch for {weather_file}: "
+                f"SAM returned {len(vals)} points, weather file provides {len(df_weather.index)} "
+                f"timestamps. Truncating to {min(len(vals), len(df_weather.index))} points."
+            ),
+            RuntimeWarning,
+            stacklevel=2,
+        )
     n = min(len(vals), len(df_weather.index))
     # SAM gen output is kW; convert to W.
     series = pd.Series(vals[:n], index=df_weather.index[:n], name=column_name) * 1000.0
